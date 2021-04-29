@@ -40,7 +40,8 @@ int main(void)
 	init_I2C_Slave();
 	//Variabler//
 	volatile uint16_t seconds;
-	uint16_t adc_result, maxValueADC, minValueADC;
+	float adc_result, maxValueADC, minValueADC;
+	uint8_t high_adc_result, low_adc_result, high_maxValueADC, low_maxValueADC, high_minValueADC, low_minValueADC;
 	sei(); // Enabler globale interrupts sånn at vi kan benytte oss av et interrupt basert system.
 	
 	while (1)
@@ -87,29 +88,38 @@ int start_ADC(int pin){
 	ADMUX |= pin; // Which inputs to use MUX[3:0]
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
-	adc_result = ADCH;
-	
-	return adc_result;
+	low_adc_result = ADCL;
+	high_adc_result = ADCH;
+	adc_result = (high_adc_result << 2)|(low_adc_result >> 6);
 	
 	//----Skalering---//
 	if(pin == 0){
 		uint16_t moist = ((adc_result-minValueADC)/(maxValueADC-minValueADC)) * 100;
+		return moist;
+	} else if(pin == 1){
+		return high_adc_result;
 	}
 }
 void adc_calibration(){
 	cli();
+	
 	printString("\r\nPress button 2 for dry calibration\r\n");
-	loop_until_bit_is_clear(PIND, button2); // Waits for PD3
+	loop_until_bit_is_clear(PINB, PINB0); // Waits for PB0
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
-	minValueADC = ADCH;
+	low_minValueADC = ADCL;
+	high_minValueADC = ADCH;
+	minValueADC = (high_minValueADC << 2)|(low_minValueADC >> 6);
+	
 	printString("\r\nPress button 2 for wet calibration\r\n");
-	loop_until_bit_is_clear(PIND, button2); // Waits for PD3
+	loop_until_bit_is_clear(PINB, PINB0); // Waits for PB0
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
-	maxValueADC = ADCH;
-	printString("\r\nCalibration routine done!\r\n");
+	low_maxValueADC = ADCL;
+	high_maxValueADC = ADCH;
+	maxValueADC = (high_maxValueADC << 2)|(low_maxValueADC >> 6);
 	_delay_ms(2000);
+	
 	sei();
 }
 ISR(INT0_vect){
