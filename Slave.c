@@ -104,7 +104,7 @@ void adc_calibration(){
 	cli();
 	
 	printString("\r\nPress button 2 for dry calibration\r\n");
-	loop_until_bit_is_clear(PINB, PINB0); // Waits for PB0
+	loop_until_bit_is_clear(PINB, button2); // Waits for PB0
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
 	low_minValueADC = ADCL;
@@ -112,7 +112,7 @@ void adc_calibration(){
 	minValueADC = (high_minValueADC << 2)|(low_minValueADC >> 6);
 	
 	printString("\r\nPress button 2 for wet calibration\r\n");
-	loop_until_bit_is_clear(PINB, PINB0); // Waits for PB0
+	loop_until_bit_is_clear(PINB, button2); // Waits for PB0
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
 	low_maxValueADC = ADCL;
