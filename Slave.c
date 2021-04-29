@@ -21,42 +21,10 @@
 #define button1					PD2
 #define button2					PD3
 
-
+float adc_result, maxValueADC, minValueADC;
+uint8_t high_adc_result, low_adc_result, high_maxValueADC, low_maxValueADC, high_minValueADC, low_minValueADC;
 //Funksjoner
 
-int main(void)
-{
-	//Inits//
-	//Knapper
-	init_Buttons();
-	//INT0 interrupt
-	init_Interrupt();
-	//ADC
-	//DIDR0 = (1<<ADC0D) | (1<<ADC1D); //Må disable digital input på inngangene vi bruker adc på
-	init_ADC(); // Initialize ADC
-	//USART
-	initUSART();
-	//I2C Slave 
-	init_I2C_Slave();
-	//Variabler//
-	volatile uint16_t seconds;
-	float adc_result, maxValueADC, minValueADC;
-	uint8_t high_adc_result, low_adc_result, high_maxValueADC, low_maxValueADC, high_minValueADC, low_minValueADC;
-	sei(); // Enabler globale interrupts sånn at vi kan benytte oss av et interrupt basert system.
-	
-	while (1)
-	{
-		if (TWSR == 0xA8) // Own SLA+R has been received; ACK has been returned
-		{
-			TWDR = start_ADC(0); // Input bitmaskene for fuktighet
-			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
-			loop_until_bit_is_set(TWCR, TWINT);
-			TWDR = start_ADC(1); //Input bitmaskene for lys
-			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
-		}
-		
-	}
-}
 void init_ADC(){
 	
 	ADMUX |= (1 << REFS0); // AVcc as referance
@@ -82,9 +50,9 @@ void init_I2C_Slave(){
 	//Setter slaven i Slave reciever mode.
 	TWCR = (1<<TWEN)|(0<<TWIE)|(1<<TWINT)|(1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|(0<<TWWC);
 }
-
 int start_ADC(int pin){
 	// finne pinnene som adc inputen skal være på
+	clear_bit(ADMUX, 0);
 	ADMUX |= pin; // Which inputs to use MUX[3:0]
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
@@ -96,9 +64,10 @@ int start_ADC(int pin){
 	if(pin == 0){
 		uint16_t moist = ((adc_result-minValueADC)/(maxValueADC-minValueADC)) * 100;
 		return moist;
-	} else if(pin == 1){
+		}
+	 else if(pin == 1){
 		return high_adc_result;
-	}
+		}
 }
 void adc_calibration(){
 	cli();
@@ -125,4 +94,37 @@ void adc_calibration(){
 ISR(INT0_vect){
 	printString("\r\nCalibration started!\r\n");
 	adc_calibration();
+}
+
+int main(void)
+{
+	//Inits//
+	//Knapper
+	init_Buttons();
+	//INT0 interrupt
+	init_Interrupt();
+	//ADC
+	//DIDR0 = (1<<ADC0D) | (1<<ADC1D); //Må disable digital input på inngangene vi bruker adc på
+	init_ADC(); // Initialize ADC
+	//USART
+	initUSART();
+	//I2C Slave 
+	init_I2C_Slave();
+	//Variabler//
+	sei(); // Enabler globale interrupts sånn at vi kan benytte oss av et interrupt basert system.
+	
+	while (1)
+	{
+		_delay_ms(5000);
+		printString("\r\nMain loop\r\n");
+		if (TWSR == 0xA8) // Own SLA+R has been received; ACK has been returned
+		{
+			TWDR = start_ADC(0); // Input bitmaskene for fuktighet
+			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
+			loop_until_bit_is_set(TWCR, TWINT);
+			TWDR = start_ADC(1); //Input bitmaskene for lys
+			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
+		}
+		
+	}
 }
