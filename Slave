@@ -1,0 +1,118 @@
+/*
+ * CFile1.c
+ *
+ * Created: 26.04.2021 16:02:57
+ *  Author: willi
+ */ 
+//Includes
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/power.h>
+#include <avr/sfr_defs.h>
+#include <avr/interrupt.h>
+#include "USART.h"
+#include "i2c.h"
+#include "Macros.h"
+
+
+//Defines
+#define SLAVE_ADDRESS			0b00000010
+#define moistureSensor			0
+#define button1					PD2
+#define button2					PD3
+
+
+//Funksjoner
+
+int main(void)
+{
+	//Inits//
+	//Knapper
+	init_Buttons();
+	//INT0 interrupt
+	init_Interrupt();
+	//ADC
+	//DIDR0 = (1<<ADC0D) | (1<<ADC1D); //Må disable digital input på inngangene vi bruker adc på
+	init_ADC(); // Initialize ADC
+	//USART
+	initUSART();
+	//I2C Slave 
+	init_I2C_Slave();
+	//Variabler//
+	volatile uint16_t seconds;
+	uint16_t adc_result, maxValueADC, minValueADC;
+	sei(); // Enabler globale interrupts sånn at vi kan benytte oss av et interrupt basert system.
+	
+	while (1)
+	{
+		if (TWSR == 0xA8) // Own SLA+R has been received; ACK has been returned
+		{
+			TWDR = start_ADC(0); // Input bitmaskene for fuktighet
+			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
+			loop_until_bit_is_set(TWCR, TWINT);
+			TWDR = start_ADC(1); //Input bitmaskene for lys
+			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
+		}
+		
+	}
+}
+void init_ADC(){
+	
+	ADMUX |= (1 << REFS0); // AVcc as referance
+	ADMUX |= (1 << ADLAR); // venstreskifter slik at 2 LSB havner i ADL og de 8 MSB havner i adh
+	ADCSRA |= (1 <<ADPS2)|(1 <<ADPS1)|(1 <<ADPS0); // clk /128 -> 125kHz
+	ADCSRA |= (1 << ADEN); // enables adc
+}
+void init_Buttons(){
+	
+	PORTD = 0b11111111; //Aktiverer pullup resistor på PD2 og PD3. Aktiverer også pullup for å unngå flytende inputs
+	DDRD =  0b00000000; //Setter alle til inputs
+	PORTC = 0b00000000; //
+	DDRC = 0b00000000; //Setter alle til inputs
+}
+void init_Interrupt(){
+	
+	EIMSK = (1<<INT0); //Interrupt på INT0
+	EICRA |= (1<< ISC01) | (1<<ISC10); //Trigger på negativ flanke
+}
+void init_I2C_Slave(){
+	
+	TWAR = SLAVE_ADDRESS;
+	//Setter slaven i Slave reciever mode.
+	TWCR = (1<<TWEN)|(0<<TWIE)|(1<<TWINT)|(1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|(0<<TWWC);
+}
+
+int start_ADC(int pin){
+	// finne pinnene som adc inputen skal være på
+	ADMUX |= pin; // Which inputs to use MUX[3:0]
+	ADCSRA |= (1<<ADSC);// start adc conversion
+	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
+	adc_result = ADCH;
+	
+	return adc_result;
+	
+	//----Skalering---//
+	if(pin == 0){
+		uint16_t moist = ((adc_result-minValueADC)/(maxValueADC-minValueADC)) * 100;
+	}
+}
+void adc_calibration(){
+	cli();
+	printString("\r\nPress button 2 for dry calibration\r\n");
+	loop_until_bit_is_clear(PIND, button2); // Waits for PD3
+	ADCSRA |= (1<<ADSC);// start adc conversion
+	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
+	minValueADC = ADCH;
+	printString("\r\nPress button 2 for wet calibration\r\n");
+	loop_until_bit_is_clear(PIND, button2); // Waits for PD3
+	ADCSRA |= (1<<ADSC);// start adc conversion
+	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
+	maxValueADC = ADCH;
+	printString("\r\nCalibration routine done!\r\n");
+	_delay_ms(2000);
+	sei();
+}
+ISR(INT0_vect){
+	printString("\r\nCalibration started!\r\n");
+	adc_calibration();
+}
