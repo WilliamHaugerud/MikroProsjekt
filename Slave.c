@@ -116,8 +116,8 @@ int main(void)
 	
 	while (1)
 	{
-		printByte(TWSR);
-		_delay_ms(1000);
+// 		printByte(TWSR); //Testing purposes
+// 		_delay_ms(1000);
 		if (TWSR == 0xA8) // Own SLA+R has been received; ACK has been returned
 		{
 			TWDR = start_ADC(0); // Input bitmaskene for fuktighet
@@ -129,10 +129,15 @@ int main(void)
 			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
 			printString("\r\nData sent\r\n");
 		}
-		else if (TWSR == 0xC0)
+		else if (TWSR == 0xC0) //No ack recieved. Master har avsluttet sending og slave blir resatt.
+		{
+			init_I2C_Slave();
+		}
+		else if (TWSR == 0x00) //Ulovlig modus. Skjer om sending foregår mens kalibrering skjer
 		{
 			init_I2C_Slave();
 		}
 		
 	}
 }
+
