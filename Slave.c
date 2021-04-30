@@ -6,6 +6,7 @@
  */ 
 //Includes
 #include <avr/io.h>
+#define F_CPU 16000000UL
 #include <util/delay.h>
 #include <avr/power.h>
 #include <avr/sfr_defs.h>
@@ -73,15 +74,15 @@ void adc_calibration(){
 	cli();
 	
 	printString("\r\nPress button 2 for dry calibration\r\n");
-	loop_until_bit_is_clear(PINB, button2); // Waits for PB0
+	loop_until_bit_is_clear(PIND, button2); // Waits for PB1
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
 	low_minValueADC = ADCL;
 	high_minValueADC = ADCH;
 	minValueADC = (high_minValueADC << 2)|(low_minValueADC >> 6);
-	
+	_delay_ms(2000);
 	printString("\r\nPress button 2 for wet calibration\r\n");
-	loop_until_bit_is_clear(PINB, button2); // Waits for PB0
+	loop_until_bit_is_clear(PIND, button2); // Waits for PB1
 	ADCSRA |= (1<<ADSC);// start adc conversion
 	do {} while (ADCSRA & (1<<ADSC)); // venter på at omgjøringen skal bli ferdig
 	low_maxValueADC = ADCL;
@@ -115,8 +116,7 @@ int main(void)
 	
 	while (1)
 	{
-		_delay_ms(5000);
-		printString("\r\nMain loop\r\n");
+		
 		if (TWSR == 0xA8) // Own SLA+R has been received; ACK has been returned
 		{
 			TWDR = start_ADC(0); // Input bitmaskene for fuktighet
@@ -124,7 +124,9 @@ int main(void)
 			loop_until_bit_is_set(TWCR, TWINT);
 			TWDR = start_ADC(1); //Input bitmaskene for lys
 			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
+			printString("\r\nData sent\r\n");
 		}
 		
 	}
 }
+
