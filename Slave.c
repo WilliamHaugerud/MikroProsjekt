@@ -116,17 +116,23 @@ int main(void)
 	
 	while (1)
 	{
-		
+		printByte(TWSR);
+		_delay_ms(1000);
 		if (TWSR == 0xA8) // Own SLA+R has been received; ACK has been returned
 		{
 			TWDR = start_ADC(0); // Input bitmaskene for fuktighet
+			printByte(TWDR);
 			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
 			loop_until_bit_is_set(TWCR, TWINT);
 			TWDR = start_ADC(1); //Input bitmaskene for lys
+			printByte(TWDR);
 			TWCR = (1<<TWEN)|(1<<TWINT)|(1<<TWEA);
 			printString("\r\nData sent\r\n");
+		}
+		else if (TWSR == 0xC0)
+		{
+			init_I2C_Slave();
 		}
 		
 	}
 }
-
